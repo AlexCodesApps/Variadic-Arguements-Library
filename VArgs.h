@@ -15,7 +15,7 @@
 #if (__cplusplus < 201103L)
 #error Must Be Using C++ 11 Or Above
 #endif
-#include <cstddef> // For size_t
+#include <cstddef> // For std::size_t
 #include <algorithm> // For std::merge
 #include <array> // For Array Collapse Functions
 #include <exception> // For UniformValueAtIndex Runtime Exception
@@ -27,12 +27,12 @@ struct __Length {};
 // DNU. Prefer Length() Instead.
 template <>
 struct __Length<> {
-    static constexpr size_t value = 0;
+    static constexpr std::size_t value = 0;
 };
 // DNU. Prefer Length() Instead.
 template <typename T, typename ...Args>
 struct __Length<T, Args...> {
-    static constexpr size_t value = 1 + __Length<Args...>::value;
+    static constexpr std::size_t value = 1 + __Length<Args...>::value;
 };
 /* 
 Used To Get The Length Of A Variadic Array. 
@@ -40,7 +40,7 @@ In C++20 sizeof...(Args) Can Be Used
 But This Function Maintains Backwards Compatability 
 */
 template <typename ...Args>
-constexpr size_t Length() {
+constexpr std::size_t Length() {
     return __Length<Args...>::value;
 }
 /* 
@@ -49,16 +49,16 @@ In C++20 sizeof...(Args) Can Be Used
 But This Function Maintains Backwards Compatability 
 */
 template <typename ...Args>
-constexpr size_t Length(Args... args) {
+constexpr std::size_t Length(Args... args) {
     return __Length<Args...>::value;
 }
 // Get The Type Of A Specified Index, Useful for Writing Variadic Type Checking Or Variadic Manipulation Functions
-template <size_t Index, typename ...Args>
+template <std::size_t Index, typename ...Args>
 struct TypeAtIndex{
     static_assert(Index < Length<Args...>(), "Index Must Be Less Than Length");
 };
 // Get The Type Of A Specified Index, Useful for Writing Variadic Type Checking Or Variadic Manipulation Functions
-template <size_t Index, typename F, typename ...Args>
+template <std::size_t Index, typename F, typename ...Args>
 struct TypeAtIndex<Index, F, Args...> {
     static_assert(Index > 0, "Index Must Be Greater Than 0");
     using type = typename TypeAtIndex<Index - 1, Args...>::type;
@@ -69,19 +69,19 @@ struct TypeAtIndex<0, F, Args...> {
     using type = F;
 };
 // Get The Value Of A Specified Index, Can Only Function Constexpr, Use ArrayCollapse To Dynamically Get Values Instead If Possible
-template <size_t Index, typename ...Args>
+template <std::size_t Index, typename ...Args>
 struct ValueAtIndex {};
 // Get The Value Of A Specified Index, Can Only Function Constexpr, Use ArrayCollapse To Dynamically Get Values Instead If Possible
 template <typename T, typename ...Args>
 struct ValueAtIndex<0, T, Args...> {
-    static constexpr T Get(T val, Args... args) {return val;}
+    static constexpr T Get(T val, Args&&... args) {return val;}
 };
 // Get The Value Of A Specified Index, Can Only Function Constexpr, Use ArrayCollapse To Dynamically Get Values Instead If Possible
-template <size_t Index, typename T, typename ...Args>
+template <std::size_t Index, typename T, typename ...Args>
 struct ValueAtIndex<Index, T, Args...> {
     static_assert(Index != 0, "Should Be Unreachable Error");
     using type = typename TypeAtIndex<Index-1, Args...>::type;
-    static constexpr type Get(T val, Args... args) {
+    static constexpr type Get(T val, Args&&... args) {
         return ValueAtIndex<Index - 1, Args...>::Get(std::forward<Args>(args)...);
     }
 };
@@ -112,14 +112,14 @@ struct __UniformValueAtIndex {};
 template <typename T, typename ...Args>
 struct __UniformValueAtIndex<T, Args...> {
     static_assert(Length<Args...>() > 0, "SFINAE Construct Should Be Invisible");
-    static T Get(size_t index, T first, Args... args) {
+    static T Get(std::size_t index, T first, Args&&... args) {
         return (index == 0) ? first : __UniformValueAtIndex<Args...>::Get(index - 1, std::forward<Args>(args)...);
     }
 };
 // DNU. Prefer UniformTypeAtIndex() Instead
 template <typename T>
 struct __UniformValueAtIndex<T> {
-    static T Get(size_t index, T val) {
+    static T Get(std::size_t index, T val) {
         #ifndef DISABLE_RUNTIME_EXCEPTION
         #define VARGS_H_CPP_UNIFORMVALUEATINDEX_EXCEPTION
         if (index != 0) throw std::runtime_error("Index Out Of Bounds");
@@ -130,7 +130,7 @@ struct __UniformValueAtIndex<T> {
 
 // Get Value At Index Of Uniform List At Runtime
 template <typename ...Args>
-constexpr typename TypeAtIndex<0, Args...>::type UniformValueAtIndex(size_t index,Args... args) {
+constexpr typename TypeAtIndex<0, Args...>::type UniformValueAtIndex(std::size_t index, Args&&... args) {
     return __UniformValueAtIndex<Args...>::Get(index, std::forward<Args>(args)...);
 }
 
@@ -144,10 +144,10 @@ template <typename First, typename ...Args>
 struct __StructArrayCollapse<First, Args...> {
     static_assert(Length<Args...>() > 0, "Should Be Unreachable Error");
     static_assert(ListUniform<First, Args...>::value, "List Must Be Of Single Type");
-    static constexpr size_t Length_t = 1 + Length<Args...>();
-    static constexpr std::array<First, Length_t> Collapse(First t, Args... args) {
-        std::array<First, Length_t> nArr = {t};
-        std::array<First, Length_t - 1> mArr = __StructArrayCollapse<Args...>::Collapse(std::forward<Args>(args)...);
+    static constexpr std::size_t argslen = 1 + Length<Args...>();
+    static constexpr std::array<First, argslen> Collapse(First t, Args&&... args) {
+        std::array<First, argslen> nArr = {t};
+        std::array<First, argslen - 1> mArr = __StructArrayCollapse<Args...>::Collapse(std::forward<Args>(args)...);
         std::merge(nArr.begin(), &nArr[1], mArr.begin(), mArr.end(), nArr.begin());
         return nArr;
     }
@@ -173,7 +173,7 @@ struct __ForEach {};
 // DNU. Prefer ForEach()
 template <typename Func, typename T, typename ...Args>
 struct __ForEach<Func, T, Args...> {
-    static constexpr void Operation(Func func, T val, Args... args) {
+    static constexpr void Operation(Func func, T val, Args&&... args) {
         func(val);
         __ForEach<Func, Args...>::Operation(func, std::forward<Args>(args)...);
     }
@@ -186,17 +186,17 @@ struct __ForEach<Func> {
 
 // Use VArgs_PassUnExpanded(x) Macro To Pass Templated Functions
 template <typename Func, typename ...Args>
-void ForEach(Func func, Args... args) {
+void ForEach(Func func, Args&&... args) {
     __ForEach<Func, Args...>::Operation(func, std::forward<Args>(args)...);
 }
 // MACROS CANT BE IN NAMESPACES :(
 #define VArgs_PassUnExpanded(x) [](auto c){x(c);}
 // Capable Of Transforming Polymorphic Arguements
 template <typename T, typename Func, typename ...Args>
-constexpr std::array<T, Length<Args...>()> FunctionArrayCollapse(Func func, Args... args) {
-    constexpr size_t length_t = Length<Args...>();
-    std::array<T, length_t> newarr;
-    size_t csize = 0;
+constexpr std::array<T, Length<Args...>()> FunctionArrayCollapse(Func func, Args&&... args) {
+    constexpr std::size_t argslen = Length<Args...>();
+    std::array<T, argslen> newarr;
+    std::size_t csize = 0;
     ForEach([&](auto arg) {newarr[csize++] = func(arg);});
     return newarr;
 }
